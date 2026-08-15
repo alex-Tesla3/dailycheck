@@ -21,9 +21,11 @@ services:
       - key: AI_API_KEY
         sync: false          # 可选：AI 大模型 API Key（OpenAI 兼容）
       - key: AI_BASE_URL
-        value: https://api.openai.com/v1
+        value: https://api.deepseek.com/v1
       - key: AI_MODEL
-        value: gpt-4o-mini
+        value: deepseek-chat
+      - key: AI_FREE_LIMIT
+        value: "5"
     # 正式版（Starter 及以上）启用持久磁盘：
     # disk:
     #   name: habits-data

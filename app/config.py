@@ -24,5 +24,6 @@ START_SCHEDULER = os.environ.get("START_SCHEDULER", "1") != "0"
 
 # ---- AI 分析（OpenAI 兼容接口，可对接 OpenAI / DeepSeek / Moonshot / 智谱等）----
 AI_API_KEY = os.environ.get("AI_API_KEY", "")
-AI_BASE_URL = os.environ.get("AI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-AI_MODEL = os.environ.get("AI_MODEL", "gpt-4o-mini")
+AI_BASE_URL = os.environ.get("AI_BASE_URL", "https://api.deepseek.com/v1").rstrip("/")
+AI_MODEL = os.environ.get("AI_MODEL", "deepseek-chat")
+AI_FREE_LIMIT = max(0, int(os.environ.get("AI_FREE_LIMIT", "5")))  # 共享 key 每用户免费次数

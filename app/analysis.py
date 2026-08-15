@@ -1,11 +1,13 @@
-"""AI 健康分析：汇总用户近期数据，调用 OpenAI 兼容的大模型接口生成个性化建议。"""
-import json
+"""AI 健康分析：汇总用户近期数据，调用 OpenAI 兼容接口生成个性化建议。
+
+Key 优先级：用户自己配置的 Key > 服务器共享 Key（每用户限 AI_FREE_LIMIT 次）> 未配置报错。
+"""
 from datetime import timedelta
 
 import requests
 from fastapi import HTTPException
 
-from .config import AI_API_KEY, AI_BASE_URL, AI_MODEL
+from .config import AI_API_KEY, AI_BASE_URL, AI_FREE_LIMIT, AI_MODEL
 from .dates import today_date, utc_now_str
 
 SYSTEM_PROMPT = """你是一名贴心的健康习惯教练，负责基于用户的真实打卡与健康数据给出个性化建议。
@@ -32,7 +34,6 @@ def build_summary(db, user_id: int, days: int) -> str:
 
     lines = [f"用户近 {days} 天（{start_str} 至 {today_str}）的数据如下：", ""]
 
-    # 习惯打卡
     habits = db.execute(
         "SELECT * FROM habits WHERE user_id = ? ORDER BY sort_order, id", (user_id,)
     ).fetchall()
@@ -58,7 +59,6 @@ def build_summary(db, user_id: int, days: int) -> str:
             line += f"，累计约 {sum(total_values):g}{unit}"
         lines.append(line)
 
-    # 血压
     bp_rows = db.execute(
         "SELECT * FROM blood_pressure WHERE user_id = ? AND measured_at >= ? AND measured_at <= ? ORDER BY measured_at",
         (user_id, f"{start_str} 00:00:00", f"{today_str} 23:59:59"),
@@ -76,7 +76,6 @@ def build_summary(db, user_id: int, days: int) -> str:
         if len(bp_rows) >= 2:
             lines.append(f"- 收缩压从 {bp_rows[0]['systolic']} 到 {bp_rows[-1]['systolic']}，舒张压从 {bp_rows[0]['diastolic']} 到 {bp_rows[-1]['diastolic']}")
 
-    # 指标（体重等）
     metric_rows = db.execute(
         "SELECT * FROM metrics WHERE user_id = ? AND date >= ? AND date <= ? ORDER BY date, id",
         (user_id, start_str, today_str),
@@ -102,15 +101,37 @@ def build_summary(db, user_id: int, days: int) -> str:
     return "\n".join(lines)
 
 
-def call_llm(user_summary: str) -> str:
+def _resolve_config(db, user_row) -> dict:
+    """返回 (api_key, base_url, model)；如无可用配置则抛 400。"""
+    if user_row["ai_api_key"]:
+        return {
+            "api_key": user_row["ai_api_key"],
+            "base_url": (user_row["ai_base_url"] or AI_BASE_URL).rstrip("/"),
+            "model": user_row["ai_model"] or AI_MODEL,
+            "uses_shared": False,
+        }
     if not AI_API_KEY:
-        raise HTTPException(status_code=400, detail="未配置 AI 分析：请在环境变量中设置 AI_API_KEY")
+        raise HTTPException(status_code=400, detail="未配置 AI 分析：请在服务器设置 AI_API_KEY，或在「我的 → AI 设置」填写自己的 Key")
+    if user_row["ai_free_used"] >= AI_FREE_LIMIT:
+        raise HTTPException(
+            status_code=400,
+            detail=f"共享 AI 额度已用完（{AI_FREE_LIMIT}/{AI_FREE_LIMIT}），请在「我的 → AI 设置」填写自己的 API Key",
+        )
+    return {
+        "api_key": AI_API_KEY,
+        "base_url": AI_BASE_URL,
+        "model": AI_MODEL,
+        "uses_shared": True,
+    }
+
+
+def call_llm(user_summary: str, api_key: str, base_url: str, model: str) -> str:
     try:
         resp = requests.post(
-            f"{AI_BASE_URL}/chat/completions",
-            headers={"Authorization": f"Bearer {AI_API_KEY}", "Content-Type": "application/json"},
+            f"{base_url}/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
             json={
-                "model": AI_MODEL,
+                "model": model,
                 "messages": [
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_summary},
@@ -120,10 +141,7 @@ def call_llm(user_summary: str) -> str:
             timeout=90,
         )
         resp.raise_for_status()
-        content = resp.json()["choices"][0]["message"]["content"]
-        return content.strip()
-    except HTTPException:
-        raise
+        return resp.json()["choices"][0]["message"]["content"].strip()
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"AI 接口调用失败：{exc}") from exc
 
@@ -131,11 +149,19 @@ def call_llm(user_summary: str) -> str:
 def generate_analysis(db, user_id: int, days: int) -> dict:
     today = today_date()
     start = today - timedelta(days=days - 1)
+    user_row = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    cfg = _resolve_config(db, user_row)
+
     summary = build_summary(db, user_id, days)
-    content = call_llm(summary)
+    content = call_llm(summary, cfg["api_key"], cfg["base_url"], cfg["model"])
+
+    if cfg["uses_shared"]:
+        # 仅在成功后才消耗共享额度
+        db.execute("UPDATE users SET ai_free_used = ai_free_used + 1 WHERE id = ?", (user_id,))
+
     cursor = db.execute(
         "INSERT INTO analyses (user_id, period_start, period_end, content, model, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-        (user_id, start.strftime("%Y-%m-%d"), today.strftime("%Y-%m-%d"), content, AI_MODEL, utc_now_str()),
+        (user_id, start.strftime("%Y-%m-%d"), today.strftime("%Y-%m-%d"), content, cfg["model"], utc_now_str()),
     )
     row = db.execute("SELECT * FROM analyses WHERE id = ?", (cursor.lastrowid,)).fetchone()
     return _serialize(row)

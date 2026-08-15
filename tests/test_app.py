@@ -341,6 +341,9 @@ def test_analysis_generate_with_mock():
     import app.analysis as analysis_mod
 
     login("admin")
+    # 模拟服务器配置了共享 key（测试环境 config 读取时为空，这里运行时注入）
+    analysis_mod.AI_API_KEY = "sk-shared-mock"
+    analysis_mod.AI_FREE_LIMIT = 5
     # 给 admin 造一点数据，让摘要非空
     hid = client.post("/api/habits", json={"name": "散步"}).json()["id"]
     client.put(f"/api/checkins/{hid}?date={today_str()}", json={"done": True, "value": "30"})
@@ -348,7 +351,7 @@ def test_analysis_generate_with_mock():
     client.post("/api/metrics", json={"name": "体重", "value": 66, "unit": "kg", "date": today_str()})
 
     original = analysis_mod.call_llm
-    analysis_mod.call_llm = lambda summary: "### 总体评价\n很好。\n\n### 改进建议\n- 多喝水\n- 早睡"
+    analysis_mod.call_llm = lambda summary, api_key, base_url, model: "### 总体评价\n很好。\n\n### 改进建议\n- 多喝水\n- 早睡"
     try:
         r = client.post("/api/analysis?days=30")
         assert r.status_code == 200, r.text
@@ -375,3 +378,62 @@ def test_analysis_generate_with_mock():
         assert client.get("/api/analysis").json() == []
     finally:
         analysis_mod.call_llm = original
+        analysis_mod.AI_API_KEY = ""
+        analysis_mod.AI_FREE_LIMIT = 5
+
+
+# ---------- AI 设置（用户自己的 Key / 共享额度） ----------
+def test_ai_status_default():
+    login("admin")
+    st = client.get("/api/me/ai").json()
+    assert st["has_own_key"] is False
+    assert isinstance(st["free_used"], int)
+    assert "api_key" not in st  # 任何响应都不应包含 key
+
+
+def test_ai_set_own_key_no_leak_and_clear():
+    login("admin")
+    # 设置自己的 key
+    r = client.put("/api/me/ai", json={"api_key": "sk-own-secret-abc", "base_url": "https://api.deepseek.com/v1", "model": "deepseek-chat"})
+    assert r.status_code == 200
+    assert "sk-own-secret-abc" not in r.text  # 不泄露
+    st = client.get("/api/me/ai").json()
+    assert st["has_own_key"] is True
+    assert "api_key" not in str(st)
+    # 清空恢复
+    r = client.put("/api/me/ai", json={"api_key": None})
+    assert r.status_code == 200
+    assert client.get("/api/me/ai").json()["has_own_key"] is False
+
+
+def test_ai_free_limit_enforced():
+    import app.analysis as analysis_mod
+
+    login("admin")
+    analysis_mod.AI_API_KEY = "sk-shared-limit"
+    analysis_mod.AI_FREE_LIMIT = 2
+    original = analysis_mod.call_llm
+    analysis_mod.call_llm = lambda summary, api_key, base_url, model: "### 总体评价\n测试内容"
+    try:
+        # 清空自己的 key，并把已用次数清零，保证从 0 开始
+        client.put("/api/me/ai", json={"api_key": None})
+        from app.db import Database as _Db
+        _d = _Db()
+        _d.execute("UPDATE users SET ai_free_used = 0 WHERE username = 'admin'")
+        _d.commit()
+        _d.close()
+        for _ in range(2):
+            r = client.post("/api/analysis?days=30")
+            assert r.status_code == 200, r.text
+        # 第 3 次应提示额度用完
+        r = client.post("/api/analysis?days=30")
+        assert r.status_code == 400
+        assert "额度已用完" in r.json()["detail"]
+        # 填自己的 key 后不再受限
+        client.put("/api/me/ai", json={"api_key": "sk-mine"})
+        assert client.post("/api/analysis?days=30").status_code == 200
+        client.put("/api/me/ai", json={"api_key": None})
+    finally:
+        analysis_mod.call_llm = original
+        analysis_mod.AI_API_KEY = ""
+        analysis_mod.AI_FREE_LIMIT = 5

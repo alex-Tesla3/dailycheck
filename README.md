@@ -94,18 +94,26 @@ Render 是云平台（PaaS），优点：自带 HTTPS、不用自己买服务器
 
 ## AI 健康分析（可选）
 
-在「分析」页可让大模型基于最近 7/30/90 天的打卡、血压、体重数据生成个性化建议。需配置环境变量（OpenAI 兼容接口，可对接 OpenAI / DeepSeek / Moonshot / 智谱等）：
+在「分析」页可让大模型基于最近 7/30/90 天的打卡、血压、体重数据生成个性化建议。支持两种 Key 方式：
 
-```
-AI_API_KEY=sk-xxx            # 必填（不填则分析页会提示未配置）
-AI_BASE_URL=https://api.openai.com/v1   # 用 DeepSeek 等可改
-AI_MODEL=gpt-4o-mini
-```
+**方式一：服务器共享 Key（每人限免 5 次）**
+- 在服务器配置一个共享 Key（默认 DeepSeek）：
+  ```
+  AI_API_KEY=sk-xxx            # 服务器共享 key
+  AI_BASE_URL=https://api.deepseek.com/v1
+  AI_MODEL=deepseek-chat
+  AI_FREE_LIMIT=5              # 每个用户使用共享 key 的免费次数（默认 5）
+  ```
+- 每个用户没有自己的 Key 时，用共享 Key 最多免费分析 `AI_FREE_LIMIT` 次，用完提示去填自己的 Key。
 
-- 自托管：加到服务器 `.env` 后 `docker compose up -d` 生效
-- Render：Settings → Environment 添加上述变量，或直接在 `render.yaml` 的 `envVars` 里填写（`AI_API_KEY` 已设为 `sync: false` 手动填写）
+**方式二：用户自己的 Key（推荐）**
+- 登录后在「我的 → AI 设置」填写自己的 API Key / Base URL / 模型，之后分析全部走自己的 Key，无次数限制，且 Key 只存在该用户的数据库记录里，任何接口都不会返回明文 Key。
+
+- 自托管：共享 Key 加到服务器 `.env` 后 `docker compose up -d` 生效
+- Render：Settings → Environment 添加共享 Key（`AI_API_KEY` 在 `render.yaml` 已设为 `sync: false` 手动填写）
 - 生成的分析会保存到 `analyses` 表，可在应用内回看/删除
 
+> 安全提醒：API Key 是敏感信息，不要发到聊天/公开仓库；如不慎泄露请立即到对应平台重新生成。
 > 提醒：AI 建议仅供参考，不替代医生诊断。
 
 ## 免费组合：Render(免费) + Supabase(免费)

@@ -102,7 +102,11 @@ def _schema_statements(is_postgres: bool) -> list:
             password_hash TEXT NOT NULL,
             is_admin INTEGER NOT NULL DEFAULT 0,
             is_disabled INTEGER NOT NULL DEFAULT 0,
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            ai_api_key TEXT,
+            ai_base_url TEXT,
+            ai_model TEXT,
+            ai_free_used INTEGER NOT NULL DEFAULT 0
         )""",
         f"""CREATE TABLE IF NOT EXISTS invite_codes (
             id {id_type} NOT NULL,
@@ -183,11 +187,32 @@ def _schema_statements(is_postgres: bool) -> list:
     ]
 
 
+_USER_AI_COLUMNS = [
+    ("ai_api_key", "TEXT"),
+    ("ai_base_url", "TEXT"),
+    ("ai_model", "TEXT"),
+    ("ai_free_used", "INTEGER NOT NULL DEFAULT 0"),
+]
+
+
+def _migrate(db: Database) -> None:
+    # 老库补列：Postgres 用 IF NOT EXISTS，SQLite 用 PRAGMA 检查后 ALTER
+    if db.is_postgres:
+        for col, ddl in _USER_AI_COLUMNS:
+            db.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {ddl}")
+        return
+    existing = {r["name"] for r in db.execute("PRAGMA table_info(users)").fetchall()}
+    for col, ddl in _USER_AI_COLUMNS:
+        if col not in existing:
+            db.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
+
+
 def init_db() -> None:
     db = Database()
     try:
         for stmt in _schema_statements(db.is_postgres):
             db.execute(stmt)
+        _migrate(db)
         db.commit()
     finally:
         db.close()

@@ -914,6 +914,51 @@ async function loadSettings() {
   ));
   main.appendChild(notifCard);
 
+  // AI 设置
+  const aiCard = el("div", { class: "card" });
+  aiCard.appendChild(el("div", { class: "card-title" }, "AI 设置"));
+  const aiStatus = el("div", { class: "stat-meta", style: "margin-bottom:10px" }, "加载中…");
+  aiCard.appendChild(aiStatus);
+  aiCard.appendChild(el("label", { class: "field" }, el("span", {}, "API Key（留空则使用共享额度）"),
+    el("input", { type: "password", id: "ai-key", placeholder: "sk-...", autocomplete: "off" })));
+  aiCard.appendChild(el("label", { class: "field" }, el("span", {}, "接口地址 Base URL"),
+    el("input", { type: "text", id: "ai-base", placeholder: "https://api.deepseek.com/v1" })));
+  aiCard.appendChild(el("label", { class: "field" }, el("span", {}, "模型"),
+    el("input", { type: "text", id: "ai-model", placeholder: "deepseek-chat" })));
+  aiCard.appendChild(el("button", { class: "btn block", id: "ai-save" }, "保存 AI 设置"));
+  main.appendChild(aiCard);
+
+  try {
+    const ai = await api("/api/me/ai");
+    let st = "";
+    if (ai.has_own_key) {
+      st = `已使用自己的 Key（${ai.own_model || ai.default_model}）`;
+    } else if (ai.shared_available) {
+      st = `使用共享额度：剩余 ${ai.free_limit - ai.free_used}/${ai.free_limit} 次`;
+    } else {
+      st = "服务器未配置共享 Key，请填写你自己的 Key 使用 AI 分析";
+    }
+    aiStatus.textContent = st;
+    $("#ai-base", aiCard).value = ai.own_base_url || ai.default_base_url;
+    $("#ai-model", aiCard).value = ai.own_model || ai.default_model;
+  } catch (e) {
+    aiStatus.textContent = "无法获取 AI 设置：" + e.message;
+  }
+  $("#ai-save", aiCard).addEventListener("click", async () => {
+    const body = {
+      api_key: $("#ai-key", aiCard).value.trim() || null,
+      base_url: $("#ai-base", aiCard).value.trim() || null,
+      model: $("#ai-model", aiCard).value.trim() || null,
+    };
+    try {
+      await api("/api/me/ai", { method: "PUT", body });
+      toast("AI 设置已保存");
+      await loadSettings();
+    } catch (e) {
+      toast(e.message);
+    }
+  });
+
   const logoutBtn = el("button", { class: "btn danger block", id: "logout" }, "退出登录");
   main.appendChild(el("div", { class: "card" }, logoutBtn));
 

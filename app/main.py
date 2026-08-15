@@ -8,7 +8,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .config import SESSION_MAX_AGE, SESSION_SECRET, START_SCHEDULER
 from .db import init_db
-from .routers import admin, analysis, auth, bp, checkins, habits, metrics, push, stats
+from .routers import admin, ai, analysis, auth, bp, checkins, habits, metrics, push, stats
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 INDEX_FILE = STATIC_DIR / "index.html"
@@ -35,7 +35,7 @@ app.add_middleware(
 )
 
 for router in (auth.router, habits.router, checkins.router, stats.router,
-               bp.router, metrics.router, analysis.router, push.router, admin.router):
+               bp.router, metrics.router, analysis.router, ai.router, push.router, admin.router):
     app.include_router(router)
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

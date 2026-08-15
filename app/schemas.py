@@ -197,3 +197,10 @@ class MetricUpdate(BaseModel):
         if not DATE_RE.match(v):
             raise ValueError("日期格式应为 YYYY-MM-DD")
         return v
+
+
+# ---------- AI 设置 ----------
+class AIUpdate(BaseModel):
+    api_key: Optional[str] = Field(default=None, max_length=200)
+    base_url: Optional[str] = Field(default=None, max_length=200)
+    model: Optional[str] = Field(default=None, max_length=64)
