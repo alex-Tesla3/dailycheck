@@ -42,7 +42,7 @@ def _user_out(row) -> dict:
 
 @router.post("/register", status_code=201)
 def register(payload: RegisterRequest, db: Connection = Depends(get_db)):
-    user_count = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    user_count = db.execute("SELECT COUNT(*) AS n FROM users").fetchone()["n"]
     if user_count == 0:
         # 首个用户自动成为管理员，无需邀请码
         cursor = db.execute(

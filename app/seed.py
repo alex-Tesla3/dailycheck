@@ -11,8 +11,8 @@ def ensure_default_habits(conn, user_id: int) -> None:
     from .dates import utc_now_str
 
     count = conn.execute(
-        "SELECT COUNT(*) FROM habits WHERE user_id = ?", (user_id,)
-    ).fetchone()[0]
+        "SELECT COUNT(*) AS n FROM habits WHERE user_id = ?", (user_id,)
+    ).fetchone()["n"]
     if count == 0:
         now = utc_now_str()
         conn.executemany(
