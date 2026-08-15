@@ -108,24 +108,53 @@ AI_MODEL=gpt-4o-mini
 
 > 提醒：AI 建议仅供参考，不替代医生诊断。
 
-## Supabase / PostgreSQL 数据库（可选）
+## 免费组合：Render(免费) + Supabase(免费)
 
-默认数据存在本地 SQLite（`data/habits.db`）。想用 Supabase 存数据、并以后直接在 Supabase 控制台查询历史记录/分析详情/统计结果：
+这是推荐的零成本方案：**Render 免费实例会休眠（提醒暂停），但数据通过 `DATABASE_URL` 存到 Supabase，重启/重部署都不丢**。
 
-1. 在 [supabase.com](https://supabase.com) 创建免费项目（选个离你近的区域）。
-2. 打开项目 → **Project Settings → Database → Connection string**（或 **Pooler**），复制 `postgresql://...` 连接串。
-3. 把连接串设为环境变量 `DATABASE_URL`（自托管 `.env`，或 Render 的 Environment）：
-   ```
-   DATABASE_URL=postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres
-   ```
-4. 重启应用后会自动建表（users/habits/checkins/blood_pressure/metrics/analyses 等）。
-5. 之后在 Supabase 控制台 **SQL Editor** 直接查数据，例如：
-   ```sql
-   select * from checkins order by date desc limit 20;
-   select * from analyses order by created_at desc;
-   ```
+### 一次配置步骤
 
-> 说明：`psycopg2-binary` 是唯一的 Postgres 依赖；本地开发若无 Postgres 会自动回退 SQLite，两种数据库同一套代码。免费 Supabase 有 500MB 数据库空间，家庭用量足够。
+1. **创建 Supabase 免费项目**：[supabase.com](https://supabase.com) → New project → 选区域（如 Singapore/ap-southeast-1）→ 记下 Database Password。
+2. **复制连接串**：项目 → **Project Settings → Database → Connection string**（选 **Session pooler** 或 **Direct connection**，端口 5432）→ Copy。
+   形如：`postgresql://postgres.<ref>:<密码>@aws-0-<region>.pooler.supabase.com:5432/postgres`
+3. **建表**（两种方式任选，推荐 A）：
+   - A（自动）：把连接串设为 `DATABASE_URL` 后启动应用，会自动建表；
+   - B（手动备用）：把仓库里的 `supabase/schema.sql` 全部粘贴到 Supabase **SQL Editor** → Run。
+4. **在 Render 上设置**：进入 dailycreate 服务 → **Environment** → Add Environment Variable：
+   ```
+   DATABASE_URL=<第 2 步复制的连接串>
+   ```
+   （Render 会因配置变化自动重新部署；免费实例冷启动约 30 秒）
+5. 打开 `https://dailycreate.onrender.com` 正常使用，数据即写入 Supabase。
+
+> 端口说明：连接串默认给的是 6543（transaction pooler），若应用建表报错，改用 5432 的 session pooler / direct connection，或先手动执行 `supabase/schema.sql`。
+
+### 数据在哪里看
+
+在 [Supabase 控制台](https://supabase.com/dashboard) → 打开你的项目：
+
+- **Table Editor（表格）**：左侧 Table Editor，点表名即可可视化浏览/筛选数据，表包括：
+  `users`（用户）、`habits`（习惯）、`checkins`（打卡记录）、`blood_pressure`（血压）、`metrics`（体重等指标）、`analyses`（AI 分析）、`invite_codes`（邀请码）、`push_subscriptions`（推送订阅）
+- **SQL Editor（SQL）**：写 SQL 查询，例如：
+  ```sql
+  -- 最近打卡
+  select h.name, c.date, c.value, c.note
+  from checkins c join habits h on h.id = c.habit_id
+  order by c.date desc limit 50;
+
+  -- 血压趋势
+  select measured_at, systolic, diastolic from blood_pressure order by measured_at;
+
+  -- AI 分析历史
+  select created_at, period_start, period_end, left(content, 80) from analyses order by id desc;
+  ```
+- 每个表都有 `user_id` 列区分家庭成员，可按 `where user_id = 1` 过滤。
+
+### 本地开发说明
+
+默认数据仍在本地 SQLite（`data/habits.db`）。想连 Supabase 只需在 `.env` 设 `DATABASE_URL`。`psycopg2-binary` 是唯一 Postgres 依赖；本地没有 Postgres 时会自动用 SQLite，同一套代码。免费 Supabase 有 500MB 空间，家庭用量足够。
+
+> 注意：切换到 Supabase 后是从空库开始（本地 SQLite 的数据不会自动过去）。如需把当前本地数据导入 Supabase，可联系我加一个导入脚本。
 
 ## 手机与推送通知
 
