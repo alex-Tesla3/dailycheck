@@ -164,3 +164,36 @@ class PushSubscribe(BaseModel):
     endpoint: str
     p256dh: str
     auth: str
+
+
+# ---------- 指标（体重等） ----------
+class MetricCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=32)
+    value: float = Field(ge=0, le=1000)
+    unit: Optional[str] = Field(default=None, max_length=16)
+    date: str
+    note: Optional[str] = Field(default=None, max_length=500)
+
+    @field_validator("date")
+    @classmethod
+    def validate_date(cls, v: str) -> str:
+        if not DATE_RE.match(v):
+            raise ValueError("日期格式应为 YYYY-MM-DD")
+        return v
+
+
+class MetricUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=32)
+    value: Optional[float] = Field(default=None, ge=0, le=1000)
+    unit: Optional[str] = Field(default=None, max_length=16)
+    date: Optional[str] = None
+    note: Optional[str] = Field(default=None, max_length=500)
+
+    @field_validator("date")
+    @classmethod
+    def validate_date(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if not DATE_RE.match(v):
+            raise ValueError("日期格式应为 YYYY-MM-DD")
+        return v

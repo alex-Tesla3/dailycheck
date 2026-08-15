@@ -6,6 +6,7 @@ from sqlite3 import Connection
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ..auth import get_current_user, hash_password, verify_password
+from ..dates import utc_now_str
 from ..db import get_db
 from ..schemas import LoginRequest, RegisterRequest, UserOut
 from ..seed import ensure_default_habits
@@ -45,8 +46,8 @@ def register(payload: RegisterRequest, db: Connection = Depends(get_db)):
     if user_count == 0:
         # 首个用户自动成为管理员，无需邀请码
         cursor = db.execute(
-            "INSERT INTO users (username, password_hash, is_admin) VALUES (?, ?, 1)",
-            (payload.username, hash_password(payload.password)),
+            "INSERT INTO users (username, password_hash, is_admin, created_at) VALUES (?, ?, 1, ?)",
+            (payload.username, hash_password(payload.password), utc_now_str()),
         )
         user_id = cursor.lastrowid
         ensure_default_habits(db, user_id)
@@ -59,8 +60,8 @@ def register(payload: RegisterRequest, db: Connection = Depends(get_db)):
         raise HTTPException(status_code=400, detail="用户名已存在")
 
     cursor = db.execute(
-        "INSERT INTO users (username, password_hash, is_admin) VALUES (?, ?, 0)",
-        (payload.username, hash_password(payload.password)),
+        "INSERT INTO users (username, password_hash, is_admin, created_at) VALUES (?, ?, 0, ?)",
+        (payload.username, hash_password(payload.password), utc_now_str()),
     )
     user_id = cursor.lastrowid
     _consume_invite_code(db, payload.invite_code, user_id)

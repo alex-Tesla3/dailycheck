@@ -3,6 +3,7 @@ from sqlite3 import Connection
 from fastapi import APIRouter, Depends, Query
 
 from ..auth import get_current_user
+from ..dates import utc_now_str
 from ..db import get_db
 from ..push_service import get_vapid_public_key
 from ..schemas import PushSubscribe
@@ -27,8 +28,8 @@ def subscribe(payload: PushSubscribe, user=Depends(get_current_user), db: Connec
         )
     else:
         db.execute(
-            "INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?)",
-            (user["id"], payload.endpoint, payload.p256dh, payload.auth),
+            "INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?)",
+            (user["id"], payload.endpoint, payload.p256dh, payload.auth, utc_now_str()),
         )
     return {"ok": True}
 

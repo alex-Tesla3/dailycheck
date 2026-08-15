@@ -192,3 +192,10 @@ label.field span { display: block; font-size: 12px; color: var(--muted); margin-
 }
 .list-divider { height: 8px; }
 .loading { text-align: center; color: var(--muted); padding: 30px; }
+
+/* AI 分析 */
+.analysis-content h3 { font-size: 15px; margin: 10px 0 4px; color: var(--primary-dark); }
+.analysis-content h4 { font-size: 14px; margin: 8px 0 3px; color: var(--text); }
+.analysis-content p { margin: 4px 0; font-size: 14px; }
+.analysis-content ul { margin: 4px 0 4px 18px; }
+.analysis-content li { margin: 3px 0; font-size: 14px; }

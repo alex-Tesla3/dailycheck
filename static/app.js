@@ -66,6 +66,8 @@ const state = {
   calMonth: null,
   monthStats: null,
   bp: { days: 90, records: [], avgSys: null, avgDia: null, count: 0 },
+  metrics: { records: [], latest: {}, editingId: null },
+  analysis: { days: 30, list: [], current: null, loading: false },
   editingBpId: null,
   editingHabitId: null,
   authMode: "login",
@@ -94,7 +96,7 @@ function bindNav() {
 
 function onHashChange() {
   const view = (location.hash || "#today").replace("#", "");
-  const valid = ["today", "calendar", "bp", "habits", "settings"];
+  const valid = ["today", "calendar", "bp", "analysis", "habits", "settings"];
   state.view = valid.includes(view) ? view : "today";
   $$(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.view === state.view));
   $("#nav").classList.remove("hidden");
@@ -105,7 +107,8 @@ function renderView() {
   const titleMap = {
     today: "每日打卡",
     calendar: "日历与统计",
-    bp: "血压记录",
+    bp: "健康记录",
+    analysis: "AI 分析",
     habits: "习惯管理",
     settings: "我的",
   };
@@ -117,6 +120,7 @@ function renderView() {
     today: loadToday,
     calendar: loadCalendar,
     bp: loadBp,
+    analysis: loadAnalysis,
     habits: loadHabits,
     settings: loadSettings,
   };
@@ -382,12 +386,18 @@ async function loadCalendar() {
 
 // ---------- 血压 ----------
 async function loadBp() {
-  const data = await api(`/api/bp?days=${state.bp.days}`);
+  const [data, mdata] = await Promise.all([
+    api(`/api/bp?days=${state.bp.days}`),
+    api(`/api/metrics?days=${state.bp.days}`),
+  ]);
   state.bp.records = data.records;
   state.bp.avgSys = data.avg_systolic;
   state.bp.avgDia = data.avg_diastolic;
   state.bp.count = data.count;
+  state.metrics.records = mdata.records;
+  state.metrics.latest = mdata.latest;
   state.editingBpId = null;
+  state.metrics.editingId = null;
   renderBp();
 }
 
@@ -482,6 +492,57 @@ function renderBp() {
   }
   main.appendChild(listCard);
 
+  // ---- 体重/指标 ----
+  const metricCard = el("div", { class: "card" });
+  metricCard.appendChild(el("div", { class: "card-title" }, state.metrics.editingId ? "编辑指标" : "体重 / 指标"));
+  const mEdit = state.metrics.editingId
+    ? state.metrics.records.find((r) => r.id === state.metrics.editingId)
+    : null;
+  const mgrid = el("div", { class: "bp-form-grid" });
+  mgrid.append(
+    el("label", { class: "field" }, el("span", {}, "名称"), el("input", { type: "text", id: "m-name", list: "metric-names", value: mEdit ? mEdit.name : "", placeholder: "体重 / 体脂率 / 血糖" })),
+    el("label", { class: "field" }, el("span", {}, "数值"), el("input", { type: "number", id: "m-value", step: "0.1", value: mEdit ? mEdit.value : "", placeholder: "如 65.5", min: 0, max: 1000 })),
+    el("label", { class: "field" }, el("span", {}, "单位"), el("input", { type: "text", id: "m-unit", value: mEdit ? (mEdit.unit || "") : "", placeholder: "kg / % / mmol/L" })),
+    el("label", { class: "field" }, el("span", {}, "日期"), el("input", { type: "date", id: "m-date", value: mEdit ? mEdit.date : fmtDate(new Date()) })),
+    el("label", { class: "field full" }, el("span", {}, "备注（可选）"), el("input", { type: "text", id: "m-note", value: mEdit ? (mEdit.note || "") : "", placeholder: "如：晨起空腹" }))
+  );
+  const mSave = el("button", { class: "btn block", id: "m-save" }, mEdit ? "更新指标" : "保存指标");
+  mgrid.appendChild(mSave);
+  if (mEdit) mgrid.appendChild(el("button", { class: "btn secondary block", id: "m-cancel", style: "margin-top:8px" }, "取消编辑"));
+  metricCard.appendChild(mgrid);
+  metricCard.appendChild(el("datalist", { id: "metric-names" },
+    el("option", { value: "体重" }), el("option", { value: "体脂率" }), el("option", { value: "血糖" }), el("option", { value: "腰围" })));
+  const mList = el("div");
+  metricCard.appendChild(mList);
+  if (state.metrics.records.length === 0) {
+    mList.appendChild(el("div", { class: "empty-tip" }, "还没有指标记录，先记一条体重吧"));
+  } else {
+    [...state.metrics.records].reverse().forEach((r) => {
+      mList.appendChild(el("div", { class: "bp-item" },
+        el("div", { class: "bp-values" },
+          el("div", { class: "nums" }, `${r.name} ${r.value}${r.unit ? " " + r.unit : ""}`),
+          el("div", { class: "when" }, `${r.date}${r.note ? " · " + r.note : ""}`)),
+        el("div", { class: "bp-actions" },
+          el("button", { class: "btn small secondary", dataset: { medit: r.id } }, "改"),
+          el("button", { class: "btn small danger", dataset: { mdel: r.id } }, "删"))));
+    });
+  }
+  main.appendChild(metricCard);
+
+  mSave.addEventListener("click", saveMetric);
+  const mCancel = $("#m-cancel", main);
+  if (mCancel) mCancel.addEventListener("click", () => { state.metrics.editingId = null; renderBp(); });
+  $$("[data-medit]", mList).forEach((b) => b.addEventListener("click", () => {
+    state.metrics.editingId = Number(b.dataset.medit);
+    renderBp();
+  }));
+  $$("[data-mdel]", mList).forEach((b) => b.addEventListener("click", async () => {
+    if (!confirm("删除这条指标记录？")) return;
+    await api(`/api/metrics/${b.dataset.mdel}`, { method: "DELETE" });
+    toast("已删除");
+    await loadBp();
+  }));
+
   // 事件
   tabs.addEventListener("click", (e) => {
     const b = e.target.closest("button");
@@ -526,6 +587,139 @@ async function saveBp() {
   } catch (e) {
     toast(e.message);
   }
+}
+
+async function saveMetric() {
+  const body = {
+    name: $("#m-name").value.trim(),
+    value: Number($("#m-value").value),
+    unit: $("#m-unit").value.trim() || null,
+    date: $("#m-date").value,
+    note: $("#m-note").value.trim() || null,
+  };
+  if (!body.name || body.value === undefined || body.value === "" || Number.isNaN(body.value)) return toast("请填写名称和数值");
+  try {
+    if (state.metrics.editingId) {
+      await api(`/api/metrics/${state.metrics.editingId}`, { method: "PATCH", body });
+      toast("已更新");
+    } else {
+      await api("/api/metrics", { method: "POST", body });
+      toast("已记录");
+    }
+    await loadBp();
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+// ---------- AI 分析 ----------
+function mdToHtml(text) {
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const lines = esc(text).split("\n");
+  let html = "", inList = false;
+  const closeList = () => { if (inList) { html += "</ul>"; inList = false; } };
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    if (/^###\s+/.test(line)) { closeList(); html += `<h4>${line.replace(/^###\s+/, "")}</h4>`; }
+    else if (/^##\s+/.test(line)) { closeList(); html += `<h3>${line.replace(/^##\s+/, "")}</h3>`; }
+    else if (/^[-*]\s+/.test(line)) { if (!inList) { html += "<ul>"; inList = true; } html += `<li>${line.replace(/^[-*]\s+/, "")}</li>`; }
+    else if (line.trim() === "") { closeList(); }
+    else { closeList(); html += `<p>${line}</p>`; }
+  }
+  closeList();
+  return html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+}
+
+async function loadAnalysis() {
+  const list = await api("/api/analysis");
+  state.analysis.list = list;
+  renderAnalysis();
+}
+
+function renderAnalysis() {
+  const main = $("#main");
+  main.innerHTML = "";
+  const card = el("div", { class: "card" });
+  card.appendChild(el("div", { class: "card-title" }, "AI 健康分析"));
+  card.appendChild(el("p", { class: "stat-meta", style: "margin-bottom:10px" },
+    "基于你最近的打卡、血压和体重数据，由大模型生成个性化建议（仅供参考，不替代医生诊断）。"));
+  const tabs = el("div", { class: "range-tabs" });
+  [7, 30, 90].forEach((d) => tabs.appendChild(el("button", {
+    class: d === state.analysis.days ? "active" : "", dataset: { adays: d },
+  }, `近${d}天`)));
+  card.appendChild(tabs);
+  const genBtn = el("button", { class: "btn block", id: "gen-analysis" },
+    state.analysis.loading ? "分析中，请稍候…" : "生成我的健康分析");
+  if (state.analysis.loading) genBtn.disabled = true;
+  card.appendChild(genBtn);
+  main.appendChild(card);
+
+  if (state.analysis.current) {
+    const cur = state.analysis.current;
+    const curCard = el("div", { class: "card" });
+    curCard.appendChild(el("div", { class: "card-title" },
+      `分析结果（${cur.period_start} ~ ${cur.period_end}）`,
+      el("button", { class: "btn small secondary", id: "del-current", style: "margin-left:auto" }, "删除")));
+    const contentBox = el("div", { class: "analysis-content" });
+    contentBox.innerHTML = mdToHtml(cur.content);
+    curCard.appendChild(contentBox);
+    main.appendChild(curCard);
+    $("#del-current", curCard).addEventListener("click", async () => {
+      if (!confirm("删除这条分析记录？")) return;
+      await api(`/api/analysis/${cur.id}`, { method: "DELETE" });
+      state.analysis.current = null;
+      await loadAnalysis();
+    });
+  } else if (!state.analysis.loading && state.analysis.list.length === 0) {
+    main.appendChild(el("div", { class: "card" }, el("div", { class: "empty-tip" }, "还没有分析记录，点上面按钮生成一份吧")));
+  }
+
+  if (state.analysis.list.length > 0) {
+    const hist = el("div", { class: "card" });
+    hist.appendChild(el("div", { class: "card-title" }, "历史分析"));
+    state.analysis.list.forEach((a) => {
+      const row = el("div", { class: "bp-item" },
+        el("div", { class: "bp-values" },
+          el("div", { class: "when" }, `${a.period_start} ~ ${a.period_end} · ${a.created_at}`)),
+        el("div", { class: "bp-actions" },
+          el("button", { class: "btn small secondary", dataset: { aview: a.id } }, "查看"),
+          el("button", { class: "btn small danger", dataset: { adel: a.id } }, "删")));
+      hist.appendChild(row);
+    });
+    main.appendChild(hist);
+    $$("[data-aview]", hist).forEach((b) => b.addEventListener("click", async () => {
+      state.analysis.current = await api(`/api/analysis/${b.dataset.aview}`);
+      renderAnalysis();
+    }));
+    $$("[data-adel]", hist).forEach((b) => b.addEventListener("click", async () => {
+      if (!confirm("删除这条分析记录？")) return;
+      await api(`/api/analysis/${b.dataset.adel}`, { method: "DELETE" });
+      await loadAnalysis();
+    }));
+  }
+
+  tabs.addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    state.analysis.days = Number(b.dataset.adays);
+    renderAnalysis();
+  });
+  genBtn.addEventListener("click", async () => {
+    state.analysis.loading = true;
+    renderAnalysis();
+    try {
+      const result = await api(`/api/analysis?days=${state.analysis.days}`, { method: "POST" });
+      state.analysis.current = result;
+      state.analysis.loading = false;
+      state.analysis.list = await api("/api/analysis");
+      renderAnalysis();
+      toast("分析完成");
+    } catch (e) {
+      state.analysis.loading = false;
+      renderAnalysis();
+      toast(e.message);
+    }
+  });
 }
 
 // 血压趋势 SVG 图

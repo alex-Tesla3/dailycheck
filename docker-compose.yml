@@ -7,6 +7,10 @@ services:
       TZ: Asia/Shanghai
       SESSION_SECRET: ${SESSION_SECRET:?请在 .env 中设置 SESSION_SECRET}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@example.com}
+      DATABASE_URL: ${DATABASE_URL:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com/v1}
+      AI_MODEL: ${AI_MODEL:-gpt-4o-mini}
     volumes:
       - habits_data:/data
     expose:

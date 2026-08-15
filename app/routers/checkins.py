@@ -3,7 +3,7 @@ from sqlite3 import Connection
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..auth import get_current_user
-from ..dates import parse_date, today_date
+from ..dates import parse_date, today_date, utc_now_str
 from ..db import get_db
 from ..schemas import CheckinUpsert
 
@@ -73,14 +73,15 @@ def upsert_checkin(habit_id: int, payload: CheckinUpsert,
         "SELECT * FROM checkins WHERE user_id = ? AND habit_id = ? AND date = ?",
         (user["id"], habit_id, date),
     ).fetchone()
+    now = utc_now_str()
     if row is None:
         db.execute(
-            "INSERT INTO checkins (user_id, habit_id, date, done, value, note) VALUES (?, ?, ?, ?, ?, ?)",
-            (user["id"], habit_id, date, int(payload.done), payload.value, payload.note),
+            "INSERT INTO checkins (user_id, habit_id, date, done, value, note, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (user["id"], habit_id, date, int(payload.done), payload.value, payload.note, now, now),
         )
     else:
         db.execute(
-            "UPDATE checkins SET done = ?, value = ?, note = ?, updated_at = datetime('now') WHERE id = ?",
-            (int(payload.done), payload.value, payload.note, row["id"]),
+            "UPDATE checkins SET done = ?, value = ?, note = ?, updated_at = ? WHERE id = ?",
+            (int(payload.done), payload.value, payload.note, now, row["id"]),
         )
     return {"habit_id": habit_id, "done": payload.done, "value": payload.value, "note": payload.note}

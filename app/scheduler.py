@@ -6,7 +6,7 @@ from datetime import datetime
 import pytz
 
 from .config import TZ
-from .db import connect
+from .db import Database
 from .push_service import SubscriptionGone, send_push
 
 logger = logging.getLogger(__name__)
@@ -20,24 +20,24 @@ def run_reminders_once() -> None:
     today = now.strftime("%Y-%m-%d")
     hm = now.strftime("%H:%M")
 
-    conn = connect()
+    db = Database()
     try:
-        habits = conn.execute(
+        habits = db.execute(
             """SELECT * FROM habits
                WHERE reminder_enabled = 1 AND reminder_time = ?
                  AND (last_reminder_date IS NULL OR last_reminder_date != ?)""",
             (hm, today),
         ).fetchall()
         for habit in habits:
-            already_done = conn.execute(
+            already_done = db.execute(
                 "SELECT 1 FROM checkins WHERE habit_id = ? AND date = ? AND done = 1",
                 (habit["id"], today),
             ).fetchone()
             if already_done:
-                conn.execute("UPDATE habits SET last_reminder_date = ? WHERE id = ?", (today, habit["id"]))
+                db.execute("UPDATE habits SET last_reminder_date = ? WHERE id = ?", (today, habit["id"]))
                 continue
 
-            subs = conn.execute(
+            subs = db.execute(
                 "SELECT * FROM push_subscriptions WHERE user_id = ?", (habit["user_id"],)
             ).fetchall()
             for sub in subs:
@@ -45,13 +45,13 @@ def run_reminders_once() -> None:
                     send_push(sub["endpoint"], sub["p256dh"], sub["auth"],
                               "打卡提醒", f"{habit['name']} 今天还没打卡，记得完成哦")
                 except SubscriptionGone:
-                    conn.execute("DELETE FROM push_subscriptions WHERE id = ?", (sub["id"],))
+                    db.execute("DELETE FROM push_subscriptions WHERE id = ?", (sub["id"],))
                 except Exception:
                     logger.exception("推送失败 habit_id=%s", habit["id"])
-            conn.execute("UPDATE habits SET last_reminder_date = ? WHERE id = ?", (today, habit["id"]))
-        conn.commit()
+            db.execute("UPDATE habits SET last_reminder_date = ? WHERE id = ?", (today, habit["id"]))
+        db.commit()
     finally:
-        conn.close()
+        db.close()
 
 
 def _loop() -> None:

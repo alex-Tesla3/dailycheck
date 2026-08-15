@@ -6,3 +6,4 @@ itsdangerous==2.2.0
 pytz==2025.2
 requests==2.33.0
 cryptography>=42
+psycopg2-binary==2.9.12

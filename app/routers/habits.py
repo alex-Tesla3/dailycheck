@@ -3,6 +3,7 @@ from sqlite3 import Connection
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import get_current_user
+from ..dates import utc_now_str
 from ..db import get_db
 from ..schemas import HabitCreate, HabitUpdate
 
@@ -44,10 +45,10 @@ def list_habits(user=Depends(get_current_user), db: Connection = Depends(get_db)
 @router.post("", status_code=201)
 def create_habit(payload: HabitCreate, user=Depends(get_current_user), db: Connection = Depends(get_db)):
     cursor = db.execute(
-        """INSERT INTO habits (user_id, name, value_label, reminder_time, reminder_enabled, color, sort_order)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        """INSERT INTO habits (user_id, name, value_label, reminder_time, reminder_enabled, color, sort_order, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
         (user["id"], payload.name, payload.value_label, payload.reminder_time,
-         int(payload.reminder_enabled), payload.color, payload.sort_order),
+         int(payload.reminder_enabled), payload.color, payload.sort_order, utc_now_str()),
     )
     row = db.execute(f"SELECT {HABIT_COLS} FROM habits WHERE id = ?", (cursor.lastrowid,)).fetchone()
     return _serialize(row)

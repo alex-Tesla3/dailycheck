@@ -16,6 +16,14 @@ services:
         value: mailto:admin@example.com
       - key: TZ
         value: Asia/Shanghai
+      - key: DATABASE_URL
+        sync: false          # 可选：Supabase Postgres 连接串，不填则用容器内 SQLite（免费版数据不持久）
+      - key: AI_API_KEY
+        sync: false          # 可选：AI 大模型 API Key（OpenAI 兼容）
+      - key: AI_BASE_URL
+        value: https://api.openai.com/v1
+      - key: AI_MODEL
+        value: gpt-4o-mini
     # 正式版（Starter 及以上）启用持久磁盘：
     # disk:
     #   name: habits-data

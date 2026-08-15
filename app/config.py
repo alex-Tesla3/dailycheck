@@ -21,3 +21,8 @@ VAPID_KEYS_PATH = DATA_DIR / "vapid.json"
 TZ = os.environ.get("TZ", "Asia/Shanghai")
 
 START_SCHEDULER = os.environ.get("START_SCHEDULER", "1") != "0"
+
+# ---- AI 分析（OpenAI 兼容接口，可对接 OpenAI / DeepSeek / Moonshot / 智谱等）----
+AI_API_KEY = os.environ.get("AI_API_KEY", "")
+AI_BASE_URL = os.environ.get("AI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+AI_MODEL = os.environ.get("AI_MODEL", "gpt-4o-mini")

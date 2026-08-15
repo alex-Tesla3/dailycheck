@@ -4,7 +4,7 @@ from sqlite3 import Connection
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..auth import get_current_user
-from ..dates import combine_local, now_local, parse_date, today_date
+from ..dates import combine_local, now_local, parse_date, today_date, utc_now_str
 from ..db import get_db
 from ..schemas import BPCreate, BPUpdate
 
@@ -69,9 +69,9 @@ def create_bp(payload: BPCreate, user=Depends(get_current_user), db: Connection 
     time_str = payload.time or now_local().strftime("%H:%M")
     measured_at = combine_local(payload.date, time_str).strftime("%Y-%m-%d %H:%M:%S")
     cursor = db.execute(
-        """INSERT INTO blood_pressure (user_id, measured_at, systolic, diastolic, pulse, note)
-           VALUES (?, ?, ?, ?, ?, ?)""",
-        (user["id"], measured_at, payload.systolic, payload.diastolic, payload.pulse, payload.note),
+        """INSERT INTO blood_pressure (user_id, measured_at, systolic, diastolic, pulse, note, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (user["id"], measured_at, payload.systolic, payload.diastolic, payload.pulse, payload.note, utc_now_str()),
     )
     row = db.execute("SELECT * FROM blood_pressure WHERE id = ?", (cursor.lastrowid,)).fetchone()
     return _serialize(row)

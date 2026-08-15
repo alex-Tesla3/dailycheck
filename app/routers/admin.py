@@ -4,6 +4,7 @@ from sqlite3 import Connection
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import require_admin
+from ..dates import utc_now_str
 from ..db import get_db
 from ..schemas import InviteCodeCreate, MemberUpdate
 from .auth import _generate_code
@@ -61,7 +62,7 @@ def create_invite_code(payload: InviteCodeCreate,
     if payload.expires_days:
         expires_at = (datetime.utcnow() + timedelta(days=payload.expires_days)).strftime("%Y-%m-%d %H:%M:%S")
     db.execute(
-        "INSERT INTO invite_codes (code, created_by, expires_at) VALUES (?, ?, ?)",
-        (code, admin["id"], expires_at),
+        "INSERT INTO invite_codes (code, created_by, expires_at, created_at) VALUES (?, ?, ?, ?)",
+        (code, admin["id"], expires_at, utc_now_str()),
     )
     return {"code": code, "expires_at": expires_at}

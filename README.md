@@ -7,13 +7,16 @@
 - **今日打卡**：逐日打卡，可填写数值（如锻炼 30 分钟、吃药 1 粒）与备注，支持补打卡（点击日历过去的日期）
 - **日历与统计**：月度日历着色（全完成/部分/未完成）、每个习惯的连续天数与月度达成率
 - **血压记录**：录入收缩压/舒张压/脉搏/备注，最近 30/90/180 天趋势图（含 140/90 参考线）与平均值，记录按正常/正常高值/偏高着色
+- **体重/指标记录**：记录体重、体脂率、血糖等任意数值指标（名称+数值+单位），随时查看最新值
+- **AI 健康分析**：基于近 7/30/90 天的打卡、血压、体重数据，调用大模型生成个性化趋势评价与改进建议（OpenAI 兼容接口，可对接 OpenAI/DeepSeek 等），历史分析可回看
+- **Supabase / Postgres 支持**：数据可存到 Supabase 的 Postgres 数据库，之后可在 Supabase 控制台直接查询历史记录、分析详情、统计结果
 - **提醒通知**：每个习惯可设提醒时间，到点且当天未完成时向手机推送；需要 HTTPS + 浏览器通知授权
 - **多人共用**：管理员生成一次性邀请码，成员凭邀请码注册；管理员可停用成员
 - **PWA**：手机浏览器"添加到主屏幕"后像 App 一样使用
 
 ## 技术栈
 
-- 后端：Python + FastAPI + SQLite（纯标准库 sqlite3，WAL 模式）
+- 后端：Python + FastAPI；数据库支持 **SQLite（默认）与 PostgreSQL / Supabase**（通过 `DATABASE_URL` 自动切换）
 - 定时提醒：内置线程调度，每分钟检查一次
 - 推送：自研 Web Push（RFC 8291/8188，VAPID 密钥首次启动自动生成），使用 `cryptography` + `requests`
 - 前端：原生 HTML/CSS/JS 单页应用（无构建步骤），PWA Service Worker
@@ -88,6 +91,41 @@ Render 是云平台（PaaS），优点：自带 HTTPS、不用自己买服务器
 
 - 自己服务器 + Docker Compose + Caddy：数据完全自己掌控，约等于一台小服务器费用；需要域名解析到服务器。步骤见上文「Docker 部署」。
 - 两者都支持手机推送通知（都满足 HTTPS）。
+
+## AI 健康分析（可选）
+
+在「分析」页可让大模型基于最近 7/30/90 天的打卡、血压、体重数据生成个性化建议。需配置环境变量（OpenAI 兼容接口，可对接 OpenAI / DeepSeek / Moonshot / 智谱等）：
+
+```
+AI_API_KEY=sk-xxx            # 必填（不填则分析页会提示未配置）
+AI_BASE_URL=https://api.openai.com/v1   # 用 DeepSeek 等可改
+AI_MODEL=gpt-4o-mini
+```
+
+- 自托管：加到服务器 `.env` 后 `docker compose up -d` 生效
+- Render：Settings → Environment 添加上述变量，或直接在 `render.yaml` 的 `envVars` 里填写（`AI_API_KEY` 已设为 `sync: false` 手动填写）
+- 生成的分析会保存到 `analyses` 表，可在应用内回看/删除
+
+> 提醒：AI 建议仅供参考，不替代医生诊断。
+
+## Supabase / PostgreSQL 数据库（可选）
+
+默认数据存在本地 SQLite（`data/habits.db`）。想用 Supabase 存数据、并以后直接在 Supabase 控制台查询历史记录/分析详情/统计结果：
+
+1. 在 [supabase.com](https://supabase.com) 创建免费项目（选个离你近的区域）。
+2. 打开项目 → **Project Settings → Database → Connection string**（或 **Pooler**），复制 `postgresql://...` 连接串。
+3. 把连接串设为环境变量 `DATABASE_URL`（自托管 `.env`，或 Render 的 Environment）：
+   ```
+   DATABASE_URL=postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres
+   ```
+4. 重启应用后会自动建表（users/habits/checkins/blood_pressure/metrics/analyses 等）。
+5. 之后在 Supabase 控制台 **SQL Editor** 直接查数据，例如：
+   ```sql
+   select * from checkins order by date desc limit 20;
+   select * from analyses order by created_at desc;
+   ```
+
+> 说明：`psycopg2-binary` 是唯一的 Postgres 依赖；本地开发若无 Postgres 会自动回退 SQLite，两种数据库同一套代码。免费 Supabase 有 500MB 数据库空间，家庭用量足够。
 
 ## 手机与推送通知
 
