@@ -1,0 +1,21 @@
+# Render Blueprint 部署配置（Docker 方式）
+# 注意：提醒功能需要实例保持运行 + 数据持久化，免费实例会休眠且无磁盘，
+# 建议使用 Starter（或更高）套餐并挂载持久磁盘。
+services:
+  - type: web
+    name: dailycreate
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /healthz
+    envVars:
+      - key: SESSION_SECRET
+        sync: false          # 首次部署时在 Render 控制台手动填写（用 openssl rand -hex 32 生成）
+      - key: VAPID_SUBJECT
+        value: mailto:admin@example.com
+      - key: TZ
+        value: Asia/Shanghai
+    disk:
+      name: habits-data
+      mountPath: /data       # SQLite 数据文件持久化到这里
+      sizeGB: 1

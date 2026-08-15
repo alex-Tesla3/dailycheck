@@ -46,6 +46,11 @@ def index():
     return FileResponse(INDEX_FILE)
 
 
+@app.get("/healthz", include_in_schema=False)
+def healthz():
+    return {"ok": True}
+
+
 @app.get("/sw.js", include_in_schema=False)
 def service_worker():
     return FileResponse(SW_FILE, media_type="text/javascript")

@@ -20,4 +20,5 @@ ENV DATA_DIR=/data
 RUN mkdir -p /data
 
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Render 会注入 $PORT；本地/Docker 直接跑时默认 8000
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

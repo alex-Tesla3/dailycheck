@@ -50,6 +50,25 @@ DATA_DIR=./data .venv/bin/uvicorn app.main:app --reload --port 8000
 
 数据保存在 Docker 卷 `habits_data`（SQLite 文件 `/data/habits.db`），升级用 `docker compose up -d --build`。
 
+## Render 部署（可选）
+
+Render 是云平台（PaaS），优点：自带 HTTPS、不用自己买服务器和管理证书；缺点：**免费实例会休眠且没有持久磁盘**，休眠时定时提醒不会运行、SQLite 数据也会在重新部署时丢失。本项目的提醒功能需要实例长期在线，因此建议 **Starter 套餐（约 $7/月）+ 1GB 持久磁盘**。
+
+仓库已附带 `render.yaml`（Render Blueprint），步骤：
+
+1. 把项目推送到 GitHub 仓库。
+2. 在 Render 控制台选 **New → Blueprint**，连接该仓库。
+3. Render 会自动识别 `render.yaml` 构建并部署；首次部署时按提示填写 `SESSION_SECRET`（用 `openssl rand -hex 32` 生成）。
+4. 部署完成后访问 `https://<应用名>.onrender.com`，注册第一个账号（管理员）→ 在「我的 → 管理后台」生成邀请码。
+5. 如需自定义域名：Settings → Custom Domain 绑定你的域名（Render 自动续证书）。
+
+> 说明：Render 部署时**不需要** `docker-compose.yml` 和 `Caddyfile`（Render 自己处理 HTTPS 反向代理）；数据保存在挂载的持久磁盘 `/data`。
+
+## 自托管（自己的服务器）对比
+
+- 自己服务器 + Docker Compose + Caddy：数据完全自己掌控，约等于一台小服务器费用；需要域名解析到服务器。步骤见上文「Docker 部署」。
+- 两者都支持手机推送通知（都满足 HTTPS）。
+
 ## 手机与推送通知
 
 - 手机浏览器（Chrome/Safari 均可）打开域名后，在「我的 → 提醒通知」点击"开启推送"并允许通知
