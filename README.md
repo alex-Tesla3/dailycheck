@@ -29,6 +29,26 @@ DATA_DIR=./data .venv/bin/uvicorn app.main:app --reload --port 8000
 
 打开 http://127.0.0.1:8000 ，第一个注册的账号自动成为管理员。
 
+## 服务器快速部署（一条命令）
+
+仓库已附 `deploy.sh`，在服务器上三步完成：
+
+```bash
+# 方式 A：本机打包后上传（本机执行）
+./tools/package.sh                          # 生成 dailycreate-deploy.tar.gz
+scp dailycreate-deploy.tar.gz root@服务器IP:/opt/
+# 服务器上执行
+cd /opt && tar -xzf dailycreate-deploy.tar.gz && cd dailycreate*
+./deploy.sh                                 # 按提示输入你的域名，其余自动完成
+```
+
+```bash
+# 方式 B：服务器直接 clone 仓库
+git clone <你的仓库地址> && cd <目录> && ./deploy.sh
+```
+
+`deploy.sh` 会：检查 Docker → 生成 `.env`（域名 + 随机 SESSION_SECRET）→ `docker compose up -d --build` → 提示访问地址。**前提**：服务器已安装 Docker、80/443 端口放行、域名 DNS 已解析到服务器公网 IP。
+
 ## Docker 部署
 
 1. 把域名 DNS 解析到服务器 IP。
