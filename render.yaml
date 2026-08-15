@@ -1,12 +1,13 @@
-# Render Blueprint 部署配置（Docker 方式）
-# 注意：提醒功能需要实例保持运行 + 数据持久化，免费实例会休眠且无磁盘，
-# 建议使用 Starter（或更高）套餐并挂载持久磁盘。
+# Render Blueprint 部署配置（Docker 方式）——免费版
+# ⚠️ 免费限制：实例 15 分钟无流量会休眠（定时提醒暂停）；无持久磁盘（/data 为容器
+# 临时目录，重新部署后数据会丢失）；750 免费实例小时/月由工作区所有免费服务共享。
+# 正式使用请：plan 改回 starter，并取消下面 disk 块的注释（见 README）。
 services:
   - type: web
     name: dailycreate
     runtime: docker
     dockerfilePath: ./Dockerfile
-    plan: starter
+    plan: free
     healthCheckPath: /healthz
     envVars:
       - key: SESSION_SECRET
@@ -15,7 +16,8 @@ services:
         value: mailto:admin@example.com
       - key: TZ
         value: Asia/Shanghai
-    disk:
-      name: habits-data
-      mountPath: /data       # SQLite 数据文件持久化到这里
-      sizeGB: 1
+    # 正式版（Starter 及以上）启用持久磁盘：
+    # disk:
+    #   name: habits-data
+    #   mountPath: /data
+    #   sizeGB: 1

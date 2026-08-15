@@ -72,9 +72,9 @@ git clone <你的仓库地址> && cd <目录> && ./deploy.sh
 
 ## Render 部署（可选）
 
-Render 是云平台（PaaS），优点：自带 HTTPS、不用自己买服务器和管理证书；缺点：**免费实例会休眠且没有持久磁盘**，休眠时定时提醒不会运行、SQLite 数据也会在重新部署时丢失。本项目的提醒功能需要实例长期在线，因此建议 **Starter 套餐（约 $7/月）+ 1GB 持久磁盘**。
+Render 是云平台（PaaS），优点：自带 HTTPS、不用自己买服务器和管理证书。仓库自带 `render.yaml`，**当前为免费套餐版**：可先免费体验界面功能，但免费实例会休眠（定时提醒暂停）、无持久磁盘（SQLite 数据在重新部署时丢失）、750 免费小时/月由工作区所有免费服务共享。**正式使用请升级 Starter（约 $7/月）+ 1GB 持久磁盘**（把 `render.yaml` 的 `plan` 改回 `starter` 并启用注释中的 `disk` 块）。
 
-仓库已附带 `render.yaml`（Render Blueprint），步骤：
+步骤：
 
 1. 把项目推送到 GitHub 仓库。
 2. 在 Render 控制台选 **New → Blueprint**，连接该仓库。
